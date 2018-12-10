@@ -11,16 +11,19 @@
 #include "iot_export.h"
 #include "app_entry.h"
 
-#define PRODUCT_KEY             "a1MZxOdcBnO"
-#define PRODUCT_SECRET          "h4I4dneEFp7EImTv"
-#define DEVICE_NAME             "test_01"
-#define DEVICE_SECRET           "t9GmMf2jb3LgWfXBaZD2r3aJrfVWBv56"
+#define PRODUCT_KEY             "a19HG621ZoA"
+#define PRODUCT_SECRET          "7WYTcfwcRbtvEf0k"
+#define DEVICE_NAME             "test"
+#define DEVICE_SECRET           "KwLlbxuyJoRBOuf5V0VypU3zUkGepU6t"
 
 /* These are pre-defined topics */
 #define TOPIC_UPDATE            "/"PRODUCT_KEY"/"DEVICE_NAME"/update"
 #define TOPIC_ERROR             "/"PRODUCT_KEY"/"DEVICE_NAME"/update/error"
 #define TOPIC_GET               "/"PRODUCT_KEY"/"DEVICE_NAME"/get"
-#define TOPIC_DATA               "/"PRODUCT_KEY"/"DEVICE_NAME"/data"
+#define TOPIC_DATA              "/"PRODUCT_KEY"/"DEVICE_NAME"/data"
+
+#define TOPIC_POST_METHOD       "thing/event/property/post"
+#define TOPIC_POST              "/sys/"PRODUCT_KEY"/"DEVICE_NAME"/"TOPIC_POST_METHOD
 
 #define MQTT_MSGLEN             (1024)
 
@@ -139,7 +142,7 @@ int mqtt_client(void)
     iotx_mqtt_param_t mqtt_params;
     iotx_mqtt_topic_info_t topic_msg;
     char msg_pub[128];
-
+    int temp = 0, hum = 0;
     /* Device AUTH */
     if (0 != IOT_SetupConnInfo(PRODUCT_KEY, DEVICE_NAME, DEVICE_SECRET, (void **)&pconn_info)) {
         EXAMPLE_TRACE("AUTH request failed!");
@@ -208,7 +211,7 @@ int mqtt_client(void)
     memset(msg_pub, 0x0, 128);
     strcpy(msg_pub, "data: hello! start!");
     memset(&topic_msg, 0x0, sizeof(iotx_mqtt_topic_info_t));
-    topic_msg.qos = IOTX_MQTT_QOS1;
+    topic_msg.qos = IOTX_MQTT_QOS0;
     topic_msg.retain = 0;
     topic_msg.dup = 0;
     topic_msg.payload = (void *)msg_pub;
@@ -220,6 +223,8 @@ int mqtt_client(void)
     IOT_MQTT_Yield(pclient, 200);
 
     do {
+
+    #if 0
         /* Generate topic message */
         cnt++;
         msg_len = snprintf(msg_pub, sizeof(msg_pub), "{\"attr_name\":\"temperature\",\"attr_value\":\"%d\"}", cnt);
@@ -245,7 +250,45 @@ int mqtt_client(void)
             HAL_SleepMs(2000);
             cnt = 0;
         }
+    #else
+    /* Generate topic message */
 
+      msg_len = snprintf(msg_pub, sizeof(msg_pub), 
+      "{\"id\":\"%llu\",\"params\":{\"temperature\":%d,\"humidity\":%d},\"method\":\"%s\"}", HAL_UTC_Get(), temp, hum, TOPIC_POST_METHOD);
+      if (msg_len < 0) {
+          EXAMPLE_TRACE("Error occur! Exit program");
+          return -1;
+      }
+      temp++;
+      hum++;
+
+      if (temp > 50)
+      {
+         temp = 0;
+      }
+
+      if (hum > 60)
+      {
+         hum = 30;
+      }
+      
+      topic_msg.payload = (void *)msg_pub;
+      topic_msg.payload_len = msg_len;
+    
+      rc = IOT_MQTT_Publish(pclient, TOPIC_POST, &topic_msg);
+      if (rc < 0) {
+          EXAMPLE_TRACE("error occur when publish");
+      }
+      EXAMPLE_TRACE("packet-id=%u, publish topic msg=%s", (uint32_t)rc, msg_pub);
+    
+      /* handle the MQTT packet received from TCP or SSL connection */
+      IOT_MQTT_Yield(pclient, 200);
+    
+      HAL_SleepMs(2000);
+
+
+
+    #endif
     } while (cnt < 1);
 
     IOT_MQTT_Yield(pclient, 200);
