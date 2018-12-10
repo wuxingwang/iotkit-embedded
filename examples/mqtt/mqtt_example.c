@@ -22,8 +22,8 @@
 #define TOPIC_GET               "/"PRODUCT_KEY"/"DEVICE_NAME"/get"
 #define TOPIC_DATA              "/"PRODUCT_KEY"/"DEVICE_NAME"/data"
 
-#define TOPIC_POST_METHOD       "thing/event/property/post"
-#define TOPIC_POST              "/sys/"PRODUCT_KEY"/"DEVICE_NAME"/"TOPIC_POST_METHOD
+#define TOPIC_POST_METHOD       "thing.event.property.post"
+#define TOPIC_POST              "/sys/"PRODUCT_KEY"/"DEVICE_NAME"/thing/event/property/post"
 
 #define MQTT_MSGLEN             (1024)
 
