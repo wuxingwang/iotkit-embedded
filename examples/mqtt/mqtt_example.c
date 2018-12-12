@@ -6,15 +6,29 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <math.h>
+#include <float.h>
 
 #include "iot_import.h"
 #include "iot_export.h"
 #include "app_entry.h"
 
+#define ALI_LINKDEVELOP
+//linkdevelop ƽ̨
+#ifdef ALI_LINKDEVELOP
+#define PRODUCT_KEY             "a1s4ar3AV1o"
+#define PRODUCT_SECRET          "a7KlpTLal0sTCOlr"
+#define DEVICE_NAME             "iSMrDqkDisHZrguTfUoo"
+#define DEVICE_SECRET           "3DmnxqSu32yfwh35XTAZPfmbPQUhS1B4"
+
+#else
+
 #define PRODUCT_KEY             "a19HG621ZoA"
 #define PRODUCT_SECRET          "7WYTcfwcRbtvEf0k"
 #define DEVICE_NAME             "test"
 #define DEVICE_SECRET           "KwLlbxuyJoRBOuf5V0VypU3zUkGepU6t"
+
+#endif
 
 /* These are pre-defined topics */
 #define TOPIC_UPDATE            "/"PRODUCT_KEY"/"DEVICE_NAME"/update"
@@ -24,6 +38,7 @@
 
 #define TOPIC_POST_METHOD       "thing.event.property.post"
 #define TOPIC_POST              "/sys/"PRODUCT_KEY"/"DEVICE_NAME"/thing/event/property/post"
+#define TOPIC_SUB_SET           "/sys/"PRODUCT_KEY"/"DEVICE_NAME"/thing/service/property/set"
 
 #define MQTT_MSGLEN             (1024)
 
@@ -108,7 +123,6 @@ void event_handle(void *pcontext, void *pclient, iotx_mqtt_event_msg_pt msg)
             break;
     }
 }
-
 static void _demo_message_arrive(void *pcontext, void *pclient, iotx_mqtt_event_msg_pt msg)
 {
     iotx_mqtt_topic_info_pt     ptopic_info = (iotx_mqtt_topic_info_pt) msg->msg;
@@ -134,6 +148,42 @@ static void _demo_message_arrive(void *pcontext, void *pclient, iotx_mqtt_event_
     }
 }
 
+static int beep = 0;
+
+static void _set_message_arrive(void *pcontext, void *pclient, iotx_mqtt_event_msg_pt msg)
+{
+    iotx_mqtt_topic_info_pt     ptopic_info = (iotx_mqtt_topic_info_pt) msg->msg;
+    char *p = NULL;
+    
+    switch (msg->event_type) {
+        case IOTX_MQTT_EVENT_PUBLISH_RECEIVED:
+            /* print topic name and topic message */
+            EXAMPLE_TRACE("----wuxingwang");
+            EXAMPLE_TRACE("PacketId: %d", ptopic_info->packet_id);
+            EXAMPLE_TRACE("Topic: '%.*s' (Length: %d)",
+                          ptopic_info->topic_len,
+                          ptopic_info->ptopic,
+                          ptopic_info->topic_len);
+            EXAMPLE_TRACE("Payload: '%.*s' (Length: %d)",
+                          ptopic_info->payload_len,
+                          ptopic_info->payload,
+                          ptopic_info->payload_len);
+            EXAMPLE_TRACE("----");
+            /*Payload: '{"method":"thing.service.property.set","id":"202543484","params":{"beep":1},"version":"1.0.0"}' (Length: 94)*/
+            p = strstr(ptopic_info->payload, "beep");
+            if (p)
+            {
+                p+= 6;
+                beep = atoi(p);
+                EXAMPLE_TRACE("beep=%d", beep);
+            }
+            break;
+        default:
+            EXAMPLE_TRACE("Should NOT arrive here.");
+            break;
+    }
+}
+
 int mqtt_client(void)
 {
     int rc, msg_len, cnt = 0;
@@ -142,7 +192,8 @@ int mqtt_client(void)
     iotx_mqtt_param_t mqtt_params;
     iotx_mqtt_topic_info_t topic_msg;
     char msg_pub[128];
-    int temp = 0, hum = 0;
+    int temp = 30, hum = 60;
+    int loop = 0;
     /* Device AUTH */
     if (0 != IOT_SetupConnInfo(PRODUCT_KEY, DEVICE_NAME, DEVICE_SECRET, (void **)&pconn_info)) {
         EXAMPLE_TRACE("AUTH request failed!");
@@ -205,6 +256,16 @@ int mqtt_client(void)
 
     IOT_MQTT_Yield(pclient, 200);
 
+    /* Subscribe the specific topic */
+    rc = IOT_MQTT_Subscribe(pclient, TOPIC_SUB_SET, IOTX_MQTT_QOS1, _set_message_arrive, NULL);
+    if (rc < 0) {
+        IOT_MQTT_Destroy(&pclient);
+        EXAMPLE_TRACE("IOT_MQTT_Subscribe() failed, rc = %d", rc);
+        return -1;
+    }
+
+    IOT_MQTT_Yield(pclient, 200);
+
     HAL_SleepMs(2000);
 
     /* Initialize topic information */
@@ -254,23 +315,22 @@ int mqtt_client(void)
     /* Generate topic message */
 
       msg_len = snprintf(msg_pub, sizeof(msg_pub), 
-      "{\"id\":\"%llu\",\"params\":{\"temperature\":%d,\"humidity\":%d},\"method\":\"%s\"}", HAL_UTC_Get(), temp, hum, TOPIC_POST_METHOD);
+      "{\"id\":\"%llu\",\"params\":{\"temperature\":%d,\"humidity\":%d,\"beep\":%d},\"method\":\"%s\"}", HAL_UTC_Get(), temp, hum, beep, TOPIC_POST_METHOD);
       if (msg_len < 0) {
           EXAMPLE_TRACE("Error occur! Exit program");
           return -1;
       }
-      temp++;
-      hum++;
 
-      if (temp > 50)
+      loop++;
+      if(loop >= 360)
       {
-         temp = 0;
+        loop = 0;
       }
-
-      if (hum > 60)
-      {
-         hum = 30;
-      }
+      
+      int gain = (int)(10*sin(loop*M_PI/180));
+      temp = 30+gain;
+      hum = 60+gain;
+      
       
       topic_msg.payload = (void *)msg_pub;
       topic_msg.payload_len = msg_len;

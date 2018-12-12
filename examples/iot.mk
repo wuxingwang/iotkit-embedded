@@ -6,7 +6,7 @@ HDR_REFS            += src/services
 
 LDFLAGS             := -Bstatic
 LDFLAGS             += -liot_sdk
-
+LDFLAGS             += -lm
 LDFLAGS             += -liot_hal
 CFLAGS              := $(filter-out -ansi,$(CFLAGS))
 ifneq (,$(filter -D_PLATFORM_IS_WINDOWS_,$(CFLAGS)))
